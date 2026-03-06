@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Progress Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey:            "AIzaSyDglZX-xqsEkP5koYkhlnsTQVe4jfiasi0",
+    authDomain:        "progress-tracker-1edac.firebaseapp.com",
+    projectId:         "progress-tracker-1edac",
+    storageBucket:     "progress-tracker-1edac.firebasestorage.app",
+    messagingSenderId: "400388347087",
+    appId:             "1:400388347087:web:d51b46ee8e66de1a7e53ba"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db   = firebase.firestore();
+</script>
+
+<style>
+/* ── TOKENS ─────────────────────────────────────────────── */
+:root{
+  --bg:#080b10;
+  --s1:#0f1318;
+  --s2:#161b22;
+  --s3:#1e2530;
+  --bd:#252d38;
+  --bd2:#2e3a48;
+  --txt:#dde3ec;
+  --mut:#556070;
+  --a1:#00e5ff;   /* cyan  */
+  --a2:#ff6b35;   /* orange */
+  --a3:#39ff9a;   /* green  */
+  --a4:#ff3d71;   /* red    */
+  --a5:#ffe066;   /* yellow */
+  --display:'Syne',sans-serif;
+  --mono:'Fira Code',monospace;
+  --body:'Outfit',sans-serif;
+  --r:14px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  background:var(--bg);
+  color:var(--txt);
+  font-family:var(--body);
+  min-height:100vh;
+}
+
+/* noise overlay */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9999;opacity:.4;
+}
+
+/* ── LOGIN SCREEN ───────────────────────────────────────── */
+#loginScreen{
+  position:fixed;inset:0;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:32px;
+  z-index:1000;
+}
+
+.login-glow{
+  position:absolute;
+  width:500px;height:500px;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(0,229,255,.08) 0%, transparent 70%);
+  pointer-events:none;
+}
+
+.login-box{
+  position:relative;
+  background:var(--s1);
+  border:1px solid var(--bd);
+  border-radius:24px;
+  padding:48px 40px;
+  text-align:center;
+  max-width:400px;width:90%;
+}
+
+.login-logo{
+  font-family:var(--display);
+  font-size:32px;font-weight:800;
+  letter-spacing:-1px;
+  color:var(--txt);
+  margin-bottom:8px;
+}
+
+.login-logo span{color:var(--a1);}
+
+.login-sub{
+  color:var(--mut);
+  font-size:14px;
+  margin-bottom:36px;
+  line-height:1.6;
+}
+
+.google-btn{
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  width:100%;padding:14px 24px;
+  background:white;color:#333;
+  border:none;border-radius:12px;
+  font-family:var(--body);font-size:15px;font-weight:600;
+  cursor:pointer;
+  transition:all .2s;
+}
+
+.google-btn:hover{
+  background:#f1f3f4;
+  transform:translateY(-2px);
+  box-shadow:0 8px 30px rgba(0,229,255,.2);
+}
+
+.google-icon{
+  width:20px;height:20px;
+}
+
+/* ── APP LAYOUT ─────────────────────────────────────────── */
+#app{display:none}
+
+.shell{
+  display:grid;
+  grid-template-columns:220px 1fr;
+  min-height:100vh;
+}
+
+@media(max-width:768px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .mobile-nav{display:flex!important}
+}
+
+/* ── SIDEBAR ────────────────────────────────────────────── */
+.sidebar{
+  background:var(--s1);
+  border-right:1px solid var(--bd);
+  padding:28px 16px;
+  display:flex;flex-direction:column;gap:4px;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+
+.sidebar-logo{
+  font-family:var(--display);
+  font-size:20px;font-weight:800;
+  color:var(--txt);
+  padding:0 12px 24px;
+  border-bottom:1px solid var(--bd);
+  margin-bottom:12px;
+  letter-spacing:-0.5px;
+}
+
+.sidebar-logo span{color:var(--a1);}
+
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;
+  border-radius:10px;
+  border:none;background:transparent;
+  color:var(--mut);
+  font-family:var(--body);font-size:14px;font-weight:500;
+  cursor:pointer;
+  transition:all .18s;
+  width:100%;text-align:left;
+}
+
+.nav-item:hover{background:var(--s2);color:var(--txt);}
+.nav-item.active{background:rgba(0,229,255,.1);color:var(--a1);font-weight:600;}
+.nav-icon{font-size:16px;width:20px;text-align:center;}
+
+.sidebar-footer{margin-top:auto;border-top:1px solid var(--bd);padding-top:16px;}
+
+.user-card{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;
+  border-radius:10px;
+  background:var(--s2);
+}
+
+.user-avatar{
+  width:32px;height:32px;border-radius:50%;
+  object-fit:cover;border:2px solid var(--a1);
+}
+
+.user-avatar-placeholder{
+  width:32px;height:32px;border-radius:50%;
+  background:var(--a1);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;color:#000;
+  flex-shrink:0;
+}
+
+.user-name{font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.signout-btn{
+  background:none;border:none;color:var(--mut);cursor:pointer;font-size:16px;
+  padding:4px;border-radius:6px;
+  transition:.15s;
+}
+.signout-btn:hover{color:var(--a4);}
+
+.xp-pill{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 12px;
+  background:var(--s2);border-radius:10px;
+  font-family:var(--mono);font-size:13px;
+  margin-bottom:8px;
+}
+
+.xp-val{color:var(--a5);font-weight:500;}
+
+/* ── MOBILE NAV ─────────────────────────────────────────── */
+.mobile-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--s1);
+  border-top:1px solid var(--bd);
+  z-index:100;
+  padding:8px 4px;
+  justify-content:space-around;
+}
+
+.mob-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 10px;border-radius:10px;
+  border:none;background:transparent;
+  color:var(--mut);font-size:10px;cursor:pointer;
+  transition:.15s;
+}
+
+.mob-btn.active{color:var(--a1);}
+.mob-icon{font-size:20px;}
+
+/* ── MAIN CONTENT ───────────────────────────────────────── */
+.main{
+  padding:32px 28px 100px;
+  overflow-y:auto;
+}
+
+@media(max-width:768px){.main{padding:20px 16px 100px;}}
+
+.page{display:none;}
+.page.active{display:block;}
+
+.page-title{
+  font-family:var(--display);
+  font-size:28px;font-weight:800;
+  letter-spacing:-0.5px;
+  margin-bottom:24px;
+}
+
+/* ── CARDS ──────────────────────────────────────────────── */
+.card{
+  background:var(--s1);
+  border:1px solid var(--bd);
+  border-radius:var(--r);
+  padding:22px;
+  margin-bottom:18px;
+  transition:border-color .2s;
+}
+
+.card:hover{border-color:var(--bd2);}
+
+.card-label{
+  font-family:var(--mono);
+  font-size:11px;font-weight:500;
+  text-transform:uppercase;letter-spacing:2px;
+  color:var(--mut);
+  margin-bottom:14px;
+  display:flex;align-items:center;gap:8px;
+}
+
+.card-label::before{
+  content:'';
+  display:inline-block;
+  width:6px;height:6px;
+  border-radius:50%;
+  background:var(--a1);
+}
+
+/* ── STATS GRID ─────────────────────────────────────────── */
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+  margin-bottom:22px;
+}
+
+@media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr);}}
+
+.stat{
+  background:var(--s1);
+  border:1px solid var(--bd);
+  border-radius:var(--r);
+  padding:18px;
+  position:relative;
+  overflow:hidden;
+}
+
+.stat::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;
+  height:2px;
+  background:var(--accent,var(--a1));
+}
+
+.stat-val{
+  font-family:var(--mono);
+  font-size:30px;font-weight:500;
+  color:var(--accent,var(--a1));
+  line-height:1;
+}
+
+.stat-key{
+  font-size:11px;color:var(--mut);
+  margin-top:6px;text-transform:uppercase;letter-spacing:1px;
+}
+
+/* ── INPUTS ─────────────────────────────────────────────── */
+input,textarea,select{
+  width:100%;
+  background:var(--s2);
+  border:1px solid var(--bd);
+  color:var(--txt);
+  padding:11px 14px;
+  border-radius:10px;
+  font-family:var(--body);font-size:14px;
+  outline:none;
+  transition:border-color .2s;
+  margin-bottom:10px;
+}
+
+input:focus,textarea:focus,select:focus{border-color:var(--a1);}
+textarea{height:110px;resize:vertical;}
+
+label{
+  display:block;font-size:12px;
+  color:var(--mut);margin-bottom:5px;font-weight:500;
+}
+
+.row{display:flex;gap:10px;align-items:flex-end;}
+.row input,.row select{margin-bottom:0;flex:1;}
+
+/* ── BUTTONS ────────────────────────────────────────────── */
+.btn{
+  padding:10px 20px;border-radius:10px;border:none;
+  font-family:var(--body);font-size:14px;font-weight:600;
+  cursor:pointer;transition:all .18s;white-space:nowrap;
+}
+
+.btn-cyan{background:var(--a1);color:#000;}
+.btn-cyan:hover{filter:brightness(1.15);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,229,255,.3);}
+
+.btn-ghost{
+  background:var(--s2);color:var(--txt);
+  border:1px solid var(--bd);
+}
+.btn-ghost:hover{border-color:var(--a1);color:var(--a1);}
+
+.btn-sm{padding:7px 14px;font-size:12px;border-radius:8px;}
+
+/* ── LIST ITEMS ─────────────────────────────────────────── */
+.item{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 14px;
+  background:var(--s2);
+  border:1px solid var(--bd);
+  border-radius:10px;
+  margin-bottom:8px;
+  transition:border-color .18s;
+  animation:fadeUp .25s ease;
+}
+
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(-6px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+.item:hover{border-color:var(--bd2);}
+.item.done{opacity:.45;}
+.item.done .item-txt{text-decoration:line-through;}
+.item-txt{flex:1;font-size:14px;}
+
+.check{
+  width:20px;height:20px;border-radius:6px;
+  border:2px solid var(--bd2);
+  background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:.18s;
+}
+
+.check.on{background:var(--a3);border-color:var(--a3);}
+.check.on::after{content:'✓';font-size:12px;color:#000;font-weight:800;}
+
+.del-btn{
+  background:none;border:none;color:var(--mut);
+  cursor:pointer;font-size:14px;padding:4px 6px;
+  border-radius:6px;transition:.15s;
+}
+.del-btn:hover{color:var(--a4);background:rgba(255,61,113,.1);}
+
+/* ── TOPIC CARDS ────────────────────────────────────────── */
+.topic-wrap{
+  background:var(--s2);
+  border:1px solid var(--bd);
+  border-radius:12px;
+  padding:16px;
+  margin-bottom:12px;
+  animation:fadeUp .25s ease;
+}
+
+.topic-head{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:12px;
+}
+
+.topic-name-txt{font-weight:600;font-size:15px;}
+
+.stages{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+
+.stage{
+  padding:8px 4px;
+  border-radius:8px;
+  border:1px solid var(--bd);
+  background:var(--s1);
+  color:var(--mut);
+  font-size:11px;font-weight:600;
+  cursor:pointer;text-align:center;
+  transition:.18s;
+}
+
+.stage:hover{border-color:var(--a1);color:var(--a1);}
+.stage.s-theory{background:rgba(0,229,255,.12);border-color:var(--a1);color:var(--a1);}
+.stage.s-beginner{background:rgba(57,255,154,.12);border-color:var(--a3);color:var(--a3);}
+.stage.s-medium{background:rgba(255,224,102,.12);border-color:var(--a5);color:var(--a5);}
+.stage.s-advanced{background:rgba(255,107,53,.12);border-color:var(--a2);color:var(--a2);}
+
+.t-bar{height:3px;background:var(--bd);border-radius:2px;margin-top:12px;}
+.t-fill{height:100%;background:linear-gradient(90deg,var(--a1),var(--a3));border-radius:2px;transition:width .4s;}
+
+/* ── GOALS ──────────────────────────────────────────────── */
+.goal-row{
+  display:flex;align-items:center;gap:16px;
+  padding:14px;
+  background:var(--s2);border:1px solid var(--bd);
+  border-radius:10px;margin-bottom:10px;
+}
+
+.goal-info{flex:1;}
+.goal-lbl{font-size:14px;margin-bottom:6px;}
+.g-bar{height:5px;background:var(--bd);border-radius:3px;}
+.g-fill{height:100%;background:linear-gradient(90deg,var(--a1),var(--a2));border-radius:3px;transition:width .4s;}
+.goal-nums{text-align:right;}
+.goal-big{font-family:var(--mono);font-size:24px;color:var(--a5);}
+.goal-target{font-size:11px;color:var(--mut);font-family:var(--mono);}
+
+/* ── DIARY ──────────────────────────────────────────────── */
+.diary-card{
+  background:var(--s2);border:1px solid var(--bd);
+  border-radius:10px;padding:14px;
+  margin-bottom:10px;
+  animation:fadeUp .25s ease;
+}
+
+.diary-meta{
+  font-family:var(--mono);font-size:11px;
+  color:var(--mut);margin-bottom:8px;
+}
+
+.diary-body{font-size:14px;line-height:1.75;color:var(--txt);}
+
+/* ── RESOURCE TAGS ──────────────────────────────────────── */
+.rtag{
+  display:inline-block;padding:2px 9px;
+  border-radius:100px;font-size:11px;font-weight:700;
+  margin-right:8px;flex-shrink:0;
+}
+
+.rtag-book{background:rgba(0,229,255,.15);color:var(--a1);}
+.rtag-video{background:rgba(255,61,113,.15);color:var(--a4);}
+.rtag-journal{background:rgba(57,255,154,.15);color:var(--a3);}
+
+/* ── BOOKS READ ─────────────────────────────────────────── */
+.books-big{
+  font-family:var(--mono);font-size:52px;
+  color:var(--a3);line-height:1;
+}
+
+/* ── CHART ──────────────────────────────────────────────── */
+.chart-box{position:relative;height:200px;margin-top:14px;}
+
+/* ── XP TOAST ───────────────────────────────────────────── */
+.toast{
+  position:fixed;bottom:80px;right:24px;
+  background:var(--a5);color:#000;
+  padding:9px 18px;border-radius:100px;
+  font-family:var(--mono);font-weight:700;font-size:13px;
+  z-index:9999;
+  animation:toastPop 2.2s ease forwards;
+  pointer-events:none;
+}
+
+@keyframes toastPop{
+  0%{opacity:0;transform:translateY(12px) scale(.9);}
+  15%{opacity:1;transform:translateY(0) scale(1);}
+  80%{opacity:1;}
+  100%{opacity:0;transform:translateY(-8px);}
+}
+
+/* ── SYNC INDICATOR ─────────────────────────────────────── */
+.sync{
+  position:fixed;top:16px;right:16px;
+  font-family:var(--mono);font-size:11px;
+  color:var(--mut);
+  display:flex;align-items:center;gap:6px;
+  z-index:500;
+}
+
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--a3);}
+.sync-dot.saving{background:var(--a5);animation:pulse .6s infinite;}
+.sync-dot.offline{background:var(--a4);}
+
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* ── EMPTY ──────────────────────────────────────────────── */
+.empty{
+  text-align:center;color:var(--mut);
+  font-size:14px;padding:28px;
+}
+
+/* ── GRID 2 ─────────────────────────────────────────────── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+@media(max-width:700px){.g2{grid-template-columns:1fr;}}
+
+/* ── LOADING ────────────────────────────────────────────── */
+#loadingScreen{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  z-index:2000;flex-direction:column;gap:16px;
+}
+
+.spinner{
+  width:36px;height:36px;
+  border:3px solid var(--bd);
+  border-top-color:var(--a1);
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <div style="font-family:var(--mono);font-size:13px;color:var(--mut)">Loading...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen" style="display:none">
+  <div class="login-glow"></div>
+  <div class="login-box">
+    <div class="login-logo">progress<span>.</span>track</div>
+    <div class="login-sub">Track your daily work, topics, goals,<br>diary, books & more — all in one place.</div>
+    <button class="google-btn" onclick="googleLogin()">
+      <svg class="google-icon" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Continue with Google
+    </button>
+  </div>
+</div>
+
+<!-- SYNC DOT -->
+<div class="sync" id="syncStatus" style="display:none">
+  <div class="sync-dot" id="syncDot"></div>
+  <span id="syncText">synced</span>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="shell">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">progress<span>.</span>track</div>
+
+      <button class="nav-item active" onclick="go('dashboard',this)"><span class="nav-icon">⚡</span> Dashboard</button>
+      <button class="nav-item" onclick="go('work',this)"><span class="nav-icon">⏱</span> Work Hours</button>
+      <button class="nav-item" onclick="go('todo',this)"><span class="nav-icon">✅</span> Tasks</button>
+      <button class="nav-item" onclick="go('goals',this)"><span class="nav-icon">🎯</span> Goals</button>
+      <button class="nav-item" onclick="go('topics',this)"><span class="nav-icon">🧠</span> Topics</button>
+      <button class="nav-item" onclick="go('diary',this)"><span class="nav-icon">📝</span> Diary</button>
+      <button class="nav-item" onclick="go('lists',this)"><span class="nav-icon">📚</span> Lists</button>
+
+      <div class="sidebar-footer">
+        <div class="xp-pill">⭐ <span class="xp-val" id="sideXP">0</span> <span style="color:var(--mut)">XP</span></div>
+        <div class="user-card">
+          <div id="sideAvatar" class="user-avatar-placeholder">?</div>
+          <span class="user-name" id="sideName">—</span>
+          <button class="signout-btn" onclick="auth.signOut()" title="Sign out">↩</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MOBILE NAV -->
+    <nav class="mobile-nav">
+      <button class="mob-btn active" onclick="go('dashboard',this)"><span class="mob-icon">⚡</span>Home</button>
+      <button class="mob-btn" onclick="go('work',this)"><span class="mob-icon">⏱</span>Work</button>
+      <button class="mob-btn" onclick="go('todo',this)"><span class="mob-icon">✅</span>Tasks</button>
+      <button class="mob-btn" onclick="go('topics',this)"><span class="mob-icon">🧠</span>Topics</button>
+      <button class="mob-btn" onclick="go('diary',this)"><span class="mob-icon">📝</span>Diary</button>
+      <button class="mob-btn" onclick="go('lists',this)"><span class="mob-icon">📚</span>Lists</button>
+    </nav>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- DASHBOARD -->
+      <div id="page-dashboard" class="page active">
+        <div class="page-title">Good <span id="greeting"></span> 👋</div>
+
+        <div class="stats-grid">
+          <div class="stat" style="--accent:var(--a1)">
+            <div class="stat-val" id="dHours">0.0</div>
+            <div class="stat-key">Hours Today</div>
+          </div>
+          <div class="stat" style="--accent:var(--a3)">
+            <div class="stat-val" id="dTasks">0</div>
+            <div class="stat-key">Tasks Done</div>
+          </div>
+          <div class="stat" style="--accent:var(--a2)">
+            <div class="stat-val" id="dTopics">0</div>
+            <div class="stat-key">Topics</div>
+          </div>
+          <div class="stat" style="--accent:var(--a4)">
+            <div class="stat-val" id="dStreak">0🔥</div>
+            <div class="stat-key">Day Streak</div>
+          </div>
+        </div>
+
+        <div class="g2">
+          <div class="card">
+            <div class="card-label">Weekly Hours</div>
+            <div class="chart-box"><canvas id="weekChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Weekly Goals</div>
+            <div id="dashGoals"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Quick Add Task</div>
+          <div class="row">
+            <input type="text" id="qTask" placeholder="What needs to get done?">
+            <button class="btn btn-cyan btn-sm" onclick="addTodo()">Add</button>
+          </div>
+          <div id="dashTodos"></div>
+        </div>
+      </div>
+
+      <!-- WORK HOURS -->
+      <div id="page-work" class="page">
+        <div class="page-title">Work Hours</div>
+        <div class="g2">
+          <div class="card">
+            <div class="card-label">Log Hours</div>
+            <div style="font-family:var(--mono);font-size:52px;color:var(--a1);line-height:1;margin-bottom:4px" id="todayHoursBig">0.0</div>
+            <div style="font-size:13px;color:var(--mut);margin-bottom:18px">hours logged today</div>
+            <label>Hours to add</label>
+            <input type="number" id="hoursIn" placeholder="e.g. 1.5" step="0.5" min="0" max="24">
+            <button class="btn btn-cyan" onclick="logHours()" style="width:100%">Log Hours (+5 XP)</button>
+            <br><br>
+            <label>Pages Read Today</label>
+            <div class="row">
+              <input type="number" id="pagesIn" placeholder="pages" min="0" style="margin-bottom:0">
+              <button class="btn btn-ghost btn-sm" onclick="logPages()">Log</button>
+            </div>
+            <div style="font-size:13px;color:var(--mut);margin-top:6px" id="pagesToday">0 pages today</div>
+          </div>
+          <div class="card">
+            <div class="card-label">This Week</div>
+            <div class="chart-box"><canvas id="workChart"></canvas></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-label">Hour Log</div>
+          <div id="hourLog"><div class="empty">No hours logged yet</div></div>
+        </div>
+      </div>
+
+      <!-- TODO -->
+      <div id="page-todo" class="page">
+        <div class="page-title">Tasks</div>
+        <div class="card">
+          <div class="card-label">Add Task</div>
+          <div class="row">
+            <input type="text" id="todoIn" placeholder="New task...">
+            <button class="btn btn-cyan btn-sm" onclick="addTodo()">Add (+5 XP)</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-label">Open Tasks</div>
+          <div id="todoOpen"><div class="empty">All clear! 🎉</div></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Completed</div>
+          <div id="todoDone"><div class="empty">Nothing completed yet</div></div>
+        </div>
+      </div>
+
+      <!-- GOALS -->
+      <div id="page-goals" class="page">
+        <div class="page-title">Weekly Goals</div>
+        <div class="card">
+          <div id="goalsDisplay"></div>
+          <br>
+          <div style="color:var(--mut);font-size:13px;margin-bottom:12px">Update progress:</div>
+          <div class="g2">
+            <div>
+              <label>Problems Solved (+)</label>
+              <div class="row">
+                <input type="number" id="addProb" placeholder="0" min="0" style="margin-bottom:0">
+                <button class="btn btn-cyan btn-sm" onclick="updateGoal('problems',5)">+ Add</button>
+              </div>
+            </div>
+            <div>
+              <label>Topics Learned (+)</label>
+              <div class="row">
+                <input type="number" id="addTopL" placeholder="0" min="0" style="margin-bottom:0">
+                <button class="btn btn-cyan btn-sm" onclick="updateGoal('topicsLearned',8)">+ Add</button>
+              </div>
+            </div>
+          </div>
+          <br>
+          <div style="color:var(--mut);font-size:13px;margin-bottom:12px">Set weekly targets:</div>
+          <div class="g2">
+            <div>
+              <label>Problem Target</label>
+              <input type="number" id="tProb" placeholder="10">
+            </div>
+            <div>
+              <label>Topic Target</label>
+              <input type="number" id="tTop" placeholder="5">
+            </div>
+          </div>
+          <button class="btn btn-ghost" onclick="setTargets()">Save Targets</button>
+        </div>
+      </div>
+
+      <!-- TOPICS -->
+      <div id="page-topics" class="page">
+        <div class="page-title">Topics</div>
+        <div class="card">
+          <div class="card-label">Add Topic</div>
+          <div class="row">
+            <input type="text" id="topicIn" placeholder="e.g. Binary Trees, Transformers...">
+            <button class="btn btn-cyan btn-sm" onclick="addTopic()">Add (+3 XP)</button>
+          </div>
+        </div>
+        <div id="topicList"><div class="empty">No topics yet</div></div>
+      </div>
+
+      <!-- DIARY -->
+      <div id="page-diary" class="page">
+        <div class="page-title">Daily Diary</div>
+        <div class="card">
+          <div class="card-label" id="diaryDateLabel"></div>
+          <textarea id="diaryIn" placeholder="Write your thoughts, what you learned, what you struggled with..."></textarea>
+          <button class="btn btn-cyan" onclick="saveDiary()">Save Entry (+3 XP)</button>
+        </div>
+        <div class="card">
+          <div class="card-label">Past Entries</div>
+          <div id="diaryList"><div class="empty">No entries yet</div></div>
+        </div>
+      </div>
+
+      <!-- LISTS -->
+      <div id="page-lists" class="page">
+        <div class="page-title">Reading & Watch Lists</div>
+        <div class="g2">
+          <div class="card">
+            <div class="card-label">Want to Read / Watch</div>
+            <select id="resType" style="margin-bottom:10px">
+              <option value="book">📘 Book</option>
+              <option value="video">🎥 YouTube Video</option>
+              <option value="journal">📄 Journal / Article</option>
+            </select>
+            <div class="row">
+              <input type="text" id="resIn" placeholder="Title or link..." style="margin-bottom:0">
+              <button class="btn btn-cyan btn-sm" onclick="addResource()">Add</button>
+            </div>
+            <br>
+            <div id="resList"><div class="empty">Your list is empty</div></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Books Completed</div>
+            <div class="books-big" id="booksCount">0</div>
+            <div style="font-size:13px;color:var(--mut);margin-bottom:16px">books finished</div>
+            <label>Log a finished book</label>
+            <div class="row">
+              <input type="text" id="bookDoneIn" placeholder="Book title..." style="margin-bottom:0">
+              <button class="btn btn-cyan btn-sm" onclick="logBookDone()">Done (+10 XP)</button>
+            </div>
+            <br>
+            <div id="booksDoneList"><div class="empty">No books logged yet</div></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div><!-- shell -->
+</div><!-- app -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   STATE  (loaded from / saved to Firestore per user)
+═══════════════════════════════════════════════════════════ */
+let uid = null;
+
+const DEFAULT = {
+  xp: 0,
+  streak: 0,
+  lastActiveDate: '',
+  todayHours: 0,
+  todayPages: 0,
+  hourLog: [],
+  todos: [],
+  topics: [],
+  diary: [],
+  resources: [],
+  booksRead: [],
+  weeklyHours: [0,0,0,0,0,0,0],
+  goals: {
+    problems: 0, topicsLearned: 0,
+    targetProblems: 10, targetTopicsLearned: 5
+  }
+};
+
+let S = JSON.parse(JSON.stringify(DEFAULT));
+let saveTimer = null;
+let weekChart = null, workChart = null;
+
+/* ═══════════════════════════════════════════════════════════
+   FIRESTORE  save / load
+═══════════════════════════════════════════════════════════ */
+function setSyncStatus(state) {
+  const dot  = document.getElementById('syncDot');
+  const text = document.getElementById('syncText');
+  dot.className = 'sync-dot' + (state === 'saving' ? ' saving' : state === 'offline' ? ' offline' : '');
+  text.textContent = state === 'saving' ? 'saving...' : state === 'offline' ? 'offline' : 'synced';
+}
+
+async function saveToCloud() {
+  if (!uid) return;
+  setSyncStatus('saving');
+  try {
+    await db.collection('users').doc(uid).set(S);
+    setSyncStatus('synced');
+  } catch(e) {
+    setSyncStatus('offline');
+    console.warn('Firestore save failed:', e);
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToCloud, 1200);
+}
+
+async function loadFromCloud() {
+  if (!uid) return;
+  try {
+    const doc = await db.collection('users').doc(uid).get();
+    if (doc.exists) {
+      S = { ...JSON.parse(JSON.stringify(DEFAULT)), ...doc.data() };
+      S.goals = { ...DEFAULT.goals, ...(doc.data().goals || {}) };
+    }
+  } catch(e) {
+    console.warn('Firestore load failed, using defaults:', e);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AUTH
+═══════════════════════════════════════════════════════════ */
+function googleLogin() {
+  const p = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(p).catch(err => {
+    alert('Login failed: ' + err.message);
+  });
+}
+
+auth.onAuthStateChanged(async user => {
+  document.getElementById('loadingScreen').style.display = 'none';
+  if (user) {
+    uid = user.uid;
+    await loadFromCloud();
+    checkStreak();
+    // Update sidebar user info
+    document.getElementById('sideName').textContent = user.displayName || 'User';
+    if (user.photoURL) {
+      document.getElementById('sideAvatar').outerHTML =
+        `<img id="sideAvatar" class="user-avatar" src="${user.photoURL}" alt="avatar">`;
+    } else {
+      document.getElementById('sideAvatar').textContent = (user.displayName || 'U')[0].toUpperCase();
+    }
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('syncStatus').style.display = 'flex';
+    renderAll();
+  } else {
+    uid = null;
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('syncStatus').style.display = 'none';
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════
+   STREAK
+═══════════════════════════════════════════════════════════ */
+function checkStreak() {
+  const today = new Date().toDateString();
+  if (!S.lastActiveDate) { S.lastActiveDate = today; scheduleSave(); return; }
+  const last = new Date(S.lastActiveDate);
+  const now  = new Date();
+  const diff = Math.floor((now - last) / 86400000);
+  if (diff === 1) { S.streak++; S.lastActiveDate = today; scheduleSave(); }
+  else if (diff > 1) { S.streak = 0; S.lastActiveDate = today; scheduleSave(); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   XP
+═══════════════════════════════════════════════════════════ */
+function addXP(n, msg) {
+  S.xp += n;
+  document.getElementById('sideXP').textContent = S.xp;
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = `+${n} XP — ${msg}`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2300);
+  scheduleSave();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════════ */
+function go(page, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .mob-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  if (btn) {
+    btn.classList.add('active');
+    // also sync the other nav (sidebar vs mobile)
+    document.querySelectorAll('.nav-item, .mob-btn').forEach(b => {
+      if (b !== btn && b.getAttribute('onclick') === btn.getAttribute('onclick')) b.classList.add('active');
+    });
+  }
+  if (page === 'dashboard') renderDashboard();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GREETING
+═══════════════════════════════════════════════════════════ */
+function setGreeting() {
+  const h = new Date().getHours();
+  document.getElementById('greeting').textContent =
+    h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER ALL
+═══════════════════════════════════════════════════════════ */
+function renderAll() {
+  setGreeting();
+  document.getElementById('sideXP').textContent = S.xp;
+  document.getElementById('dHours').textContent = (S.todayHours||0).toFixed(1);
+  document.getElementById('dTasks').textContent = (S.todos||[]).filter(t=>t.done).length;
+  document.getElementById('dTopics').textContent = (S.topics||[]).length;
+  document.getElementById('dStreak').textContent = (S.streak||0) + '🔥';
+  document.getElementById('todayHoursBig').textContent = (S.todayHours||0).toFixed(1);
+  document.getElementById('pagesToday').textContent = (S.todayPages||0) + ' pages today';
+  document.getElementById('diaryDateLabel').textContent =
+    new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  document.getElementById('booksCount').textContent = (S.booksRead||[]).length;
+  renderDashboard();
+  renderHourLog();
+  renderTodos();
+  renderGoals();
+  renderTopics();
+  renderDiary();
+  renderResources();
+  renderBooksRead();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHARTS
+═══════════════════════════════════════════════════════════ */
+const chartOpts = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{legend:{display:false}},
+  scales:{
+    x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#556070',font:{size:11}}},
+    y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#556070',font:{size:11}},beginAtZero:true}
+  }
+};
+
+function buildChartData() {
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = new Date().getDay();
+  const labels=[], data=[];
+  for(let i=6;i>=0;i--){
+    const d=(today-i+7)%7;
+    labels.push(days[d]);
+    data.push((S.weeklyHours||[])[d]||0);
+  }
+  return {labels, data};
+}
+
+function renderDashboard() {
+  const {labels,data} = buildChartData();
+
+  if (!weekChart) {
+    const ctx = document.getElementById('weekChart');
+    if (!ctx) return;
+    weekChart = new Chart(ctx, {
+      type:'bar', data:{labels, datasets:[{
+        label:'Hours', data,
+        backgroundColor:'rgba(0,229,255,0.35)',
+        borderColor:'#00e5ff', borderWidth:2, borderRadius:6
+      }]}, options:chartOpts
+    });
+  } else {
+    weekChart.data.labels = labels;
+    weekChart.data.datasets[0].data = data;
+    weekChart.update();
+  }
+
+  // dash goals
+  const g = S.goals||{};
+  const pPct = Math.min(100, ((g.problems||0)/(g.targetProblems||10))*100);
+  const tPct = Math.min(100, ((g.topicsLearned||0)/(g.targetTopicsLearned||5))*100);
+  document.getElementById('dashGoals').innerHTML = `
+    <div class="goal-row">
+      <div class="goal-info">
+        <div class="goal-lbl">🧩 Problems Solved</div>
+        <div class="g-bar"><div class="g-fill" style="width:${pPct}%"></div></div>
+      </div>
+      <div class="goal-nums">
+        <div class="goal-big">${g.problems||0}</div>
+        <div class="goal-target">/ ${g.targetProblems||10}</div>
+      </div>
+    </div>
+    <div class="goal-row">
+      <div class="goal-info">
+        <div class="goal-lbl">🧠 Topics Learned</div>
+        <div class="g-bar"><div class="g-fill" style="width:${tPct}%"></div></div>
+      </div>
+      <div class="goal-nums">
+        <div class="goal-big">${g.topicsLearned||0}</div>
+        <div class="goal-target">/ ${g.targetTopicsLearned||5}</div>
+      </div>
+    </div>
+  `;
+
+  // dash todos (top 5 open)
+  const open = (S.todos||[]).filter(t=>!t.done).slice(0,5);
+  document.getElementById('dashTodos').innerHTML = open.length
+    ? open.map(t=>`
+        <div class="item">
+          <div class="check ${t.done?'on':''}" onclick="toggleTodo(${t.id})"></div>
+          <span class="item-txt">${t.text}</span>
+        </div>`).join('')
+    : '<div class="empty">No open tasks 🎉</div>';
+}
+
+function renderWorkChart() {
+  const {labels,data} = buildChartData();
+  if (!workChart) {
+    const ctx = document.getElementById('workChart');
+    if (!ctx) return;
+    workChart = new Chart(ctx, {
+      type:'bar', data:{labels, datasets:[{
+        label:'Hours', data,
+        backgroundColor:'rgba(0,229,255,0.35)',
+        borderColor:'#00e5ff', borderWidth:2, borderRadius:6
+      }]}, options:chartOpts
+    });
+  } else {
+    workChart.data.labels = labels;
+    workChart.data.datasets[0].data = data;
+    workChart.update();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WORK HOURS
+═══════════════════════════════════════════════════════════ */
+function logHours() {
+  const v = parseFloat(document.getElementById('hoursIn').value);
+  if (!v || v<=0) return;
+  S.todayHours = Math.round(((S.todayHours||0) + v)*10)/10;
+  const day = new Date().getDay();
+  S.weeklyHours = S.weeklyHours||[0,0,0,0,0,0,0];
+  S.weeklyHours[day] = Math.round((S.weeklyHours[day]+v)*10)/10;
+  S.hourLog = S.hourLog||[];
+  S.hourLog.unshift({time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), hours:v, date:new Date().toLocaleDateString()});
+  document.getElementById('hoursIn').value='';
+  document.getElementById('todayHoursBig').textContent = S.todayHours.toFixed(1);
+  document.getElementById('dHours').textContent = S.todayHours.toFixed(1);
+  addXP(5,'Hours logged');
+  renderHourLog();
+  renderWorkChart();
+  renderDashboard();
+  scheduleSave();
+}
+
+function logPages() {
+  const v = parseInt(document.getElementById('pagesIn').value);
+  if (!v||v<=0) return;
+  S.todayPages = (S.todayPages||0) + v;
+  document.getElementById('pagesIn').value='';
+  document.getElementById('pagesToday').textContent = S.todayPages + ' pages today';
+  addXP(2,'Reading logged');
+  scheduleSave();
+}
+
+function renderHourLog() {
+  const el = document.getElementById('hourLog');
+  if (!el) return;
+  const log = S.hourLog||[];
+  if (!log.length) { el.innerHTML='<div class="empty">No hours logged yet</div>'; return; }
+  el.innerHTML = log.slice(0,15).map(h=>`
+    <div class="item">
+      <span style="font-family:var(--mono);font-size:12px;color:var(--mut)">${h.date} ${h.time}</span>
+      <span class="item-txt"></span>
+      <span style="font-family:var(--mono);font-weight:600;color:var(--a1)">${h.hours}h</span>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TODOS
+═══════════════════════════════════════════════════════════ */
+function addTodo() {
+  const inp = document.getElementById('todoIn') || document.getElementById('qTask');
+  const text = inp.value.trim();
+  if (!text) return;
+  S.todos = S.todos||[];
+  S.todos.unshift({id:Date.now(), text, done:false});
+  inp.value='';
+  addXP(5,'Task added');
+  renderTodos();
+  renderDashboard();
+  scheduleSave();
+}
+
+function toggleTodo(id) {
+  const t = (S.todos||[]).find(x=>x.id===id);
+  if (!t) return;
+  t.done = !t.done;
+  if (t.done) addXP(10,'Task completed! ✅');
+  document.getElementById('dTasks').textContent = S.todos.filter(x=>x.done).length;
+  renderTodos();
+  renderDashboard();
+  scheduleSave();
+}
+
+function delTodo(id) {
+  S.todos = (S.todos||[]).filter(x=>x.id!==id);
+  renderTodos();
+  renderDashboard();
+  scheduleSave();
+}
+
+function renderTodos() {
+  const open = document.getElementById('todoOpen');
+  const done = document.getElementById('todoDone');
+  if (!open||!done) return;
+  const todos = S.todos||[];
+  const openList = todos.filter(t=>!t.done);
+  const doneList = todos.filter(t=>t.done);
+  open.innerHTML = openList.length
+    ? openList.map(t=>`
+        <div class="item">
+          <div class="check" onclick="toggleTodo(${t.id})"></div>
+          <span class="item-txt">${t.text}</span>
+          <button class="del-btn" onclick="delTodo(${t.id})">✕</button>
+        </div>`).join('')
+    : '<div class="empty">All clear! 🎉</div>';
+  done.innerHTML = doneList.length
+    ? doneList.map(t=>`
+        <div class="item done">
+          <div class="check on" onclick="toggleTodo(${t.id})"></div>
+          <span class="item-txt">${t.text}</span>
+          <button class="del-btn" onclick="delTodo(${t.id})">✕</button>
+        </div>`).join('')
+    : '<div class="empty">Nothing completed yet</div>';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GOALS
+═══════════════════════════════════════════════════════════ */
+function updateGoal(key, xpPer) {
+  const inp = document.getElementById(key==='problems'?'addProb':'addTopL');
+  const n = parseInt(inp.value)||0;
+  if (n<=0) return;
+  S.goals = S.goals||{};
+  S.goals[key] = (S.goals[key]||0) + n;
+  inp.value='';
+  addXP(n*xpPer, key==='problems'?'Problems solved!':'Topics learned!');
+  renderGoals();
+  renderDashboard();
+  scheduleSave();
+}
+
+function setTargets() {
+  const p = parseInt(document.getElementById('tProb').value);
+  const t = parseInt(document.getElementById('tTop').value);
+  S.goals = S.goals||{};
+  if (p>0) S.goals.targetProblems=p;
+  if (t>0) S.goals.targetTopicsLearned=t;
+  renderGoals();
+  scheduleSave();
+}
+
+function renderGoals() {
+  const el = document.getElementById('goalsDisplay');
+  if (!el) return;
+  const g = S.goals||{};
+  const pPct = Math.min(100,((g.problems||0)/(g.targetProblems||10))*100);
+  const tPct = Math.min(100,((g.topicsLearned||0)/(g.targetTopicsLearned||5))*100);
+  el.innerHTML = `
+    <div class="goal-row">
+      <div class="goal-info">
+        <div class="goal-lbl">🧩 Problems Solved</div>
+        <div class="g-bar"><div class="g-fill" style="width:${pPct}%"></div></div>
+      </div>
+      <div class="goal-nums">
+        <div class="goal-big">${g.problems||0}</div>
+        <div class="goal-target">/ ${g.targetProblems||10} this week</div>
+      </div>
+    </div>
+    <div class="goal-row">
+      <div class="goal-info">
+        <div class="goal-lbl">🧠 Topics Learned</div>
+        <div class="g-bar"><div class="g-fill" style="width:${tPct}%"></div></div>
+      </div>
+      <div class="goal-nums">
+        <div class="goal-big">${g.topicsLearned||0}</div>
+        <div class="goal-target">/ ${g.targetTopicsLearned||5} this week</div>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOPICS
+═══════════════════════════════════════════════════════════ */
+function addTopic() {
+  const name = document.getElementById('topicIn').value.trim();
+  if (!name) return;
+  S.topics = S.topics||[];
+  S.topics.push({id:Date.now(),name,theory:false,beginner:false,medium:false,advanced:false});
+  document.getElementById('topicIn').value='';
+  document.getElementById('dTopics').textContent = S.topics.length;
+  addXP(3,'Topic added');
+  renderTopics();
+  scheduleSave();
+}
+
+function toggleStage(id, stage) {
+  const t = (S.topics||[]).find(x=>x.id===id);
+  if (!t) return;
+  t[stage] = !t[stage];
+  const xpMap = {theory:5,beginner:10,medium:15,advanced:20};
+  if (t[stage]) addXP(xpMap[stage], stage+' done!');
+  renderTopics();
+  scheduleSave();
+}
+
+function delTopic(id) {
+  S.topics = (S.topics||[]).filter(x=>x.id!==id);
+  document.getElementById('dTopics').textContent = S.topics.length;
+  renderTopics();
+  scheduleSave();
+}
+
+function renderTopics() {
+  const el = document.getElementById('topicList');
+  if (!el) return;
+  const topics = S.topics||[];
+  if (!topics.length) { el.innerHTML='<div class="empty">No topics yet. Add one above!</div>'; return; }
+  el.innerHTML = topics.map(t=>{
+    const done=[t.theory,t.beginner,t.medium,t.advanced].filter(Boolean).length;
+    return `
+      <div class="topic-wrap">
+        <div class="topic-head">
+          <span class="topic-name-txt">${t.name}</span>
+          <button class="del-btn" onclick="delTopic(${t.id})">✕</button>
+        </div>
+        <div class="stages">
+          <div class="stage ${t.theory?'s-theory':''}" onclick="toggleStage(${t.id},'theory')">Theory</div>
+          <div class="stage ${t.beginner?'s-beginner':''}" onclick="toggleStage(${t.id},'beginner')">Beginner</div>
+          <div class="stage ${t.medium?'s-medium':''}" onclick="toggleStage(${t.id},'medium')">Medium</div>
+          <div class="stage ${t.advanced?'s-advanced':''}" onclick="toggleStage(${t.id},'advanced')">Advanced</div>
+        </div>
+        <div class="t-bar"><div class="t-fill" style="width:${done*25}%"></div></div>
+      </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DIARY
+═══════════════════════════════════════════════════════════ */
+function saveDiary() {
+  const text = document.getElementById('diaryIn').value.trim();
+  if (!text) return;
+  S.diary = S.diary||[];
+  S.diary.unshift({
+    id:Date.now(),text,
+    date:new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})
+  });
+  document.getElementById('diaryIn').value='';
+  addXP(3,'Diary saved');
+  renderDiary();
+  scheduleSave();
+}
+
+function renderDiary() {
+  const el = document.getElementById('diaryList');
+  if (!el) return;
+  const diary = S.diary||[];
+  if (!diary.length) { el.innerHTML='<div class="empty">No entries yet</div>'; return; }
+  el.innerHTML = diary.map(d=>`
+    <div class="diary-card">
+      <div class="diary-meta">${d.date}</div>
+      <div class="diary-body">${d.text}</div>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESOURCES
+═══════════════════════════════════════════════════════════ */
+function addResource() {
+  const text = document.getElementById('resIn').value.trim();
+  const type = document.getElementById('resType').value;
+  if (!text) return;
+  S.resources = S.resources||[];
+  S.resources.unshift({id:Date.now(),text,type,done:false});
+  document.getElementById('resIn').value='';
+  addXP(2,'Added to list');
+  renderResources();
+  scheduleSave();
+}
+
+function toggleRes(id) {
+  const r = (S.resources||[]).find(x=>x.id===id);
+  if (!r) return;
+  r.done=!r.done;
+  if(r.done) addXP(5,'Marked done!');
+  renderResources();
+  scheduleSave();
+}
+
+function delRes(id) {
+  S.resources=(S.resources||[]).filter(x=>x.id!==id);
+  renderResources();
+  scheduleSave();
+}
+
+function renderResources() {
+  const el=document.getElementById('resList');
+  if (!el) return;
+  const list=S.resources||[];
+  if (!list.length){el.innerHTML='<div class="empty">Your list is empty</div>';return;}
+  const icons={book:'📘',video:'🎥',journal:'📄'};
+  const cls={book:'rtag-book',video:'rtag-video',journal:'rtag-journal'};
+  el.innerHTML=list.map(r=>`
+    <div class="item ${r.done?'done':''}">
+      <span class="rtag ${cls[r.type]}">${icons[r.type]} ${r.type}</span>
+      <span class="item-txt">${r.text}</span>
+      <button class="del-btn" onclick="toggleRes(${r.id})">${r.done?'↩':'✓'}</button>
+      <button class="del-btn" onclick="delRes(${r.id})">✕</button>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOOKS READ
+═══════════════════════════════════════════════════════════ */
+function logBookDone() {
+  const text=document.getElementById('bookDoneIn').value.trim();
+  if(!text) return;
+  S.booksRead=S.booksRead||[];
+  S.booksRead.unshift({id:Date.now(),text,date:new Date().toLocaleDateString()});
+  document.getElementById('bookDoneIn').value='';
+  document.getElementById('booksCount').textContent=S.booksRead.length;
+  addXP(10,'Book finished! 📗');
+  renderBooksRead();
+  scheduleSave();
+}
+
+function renderBooksRead() {
+  const el=document.getElementById('booksDoneList');
+  if(!el) return;
+  const list=S.booksRead||[];
+  if(!list.length){el.innerHTML='<div class="empty">No books logged yet</div>';return;}
+  el.innerHTML=list.map(b=>`
+    <div class="item">
+      <span style="font-size:18px">📗</span>
+      <div style="flex:1">
+        <div class="item-txt">${b.text}</div>
+        <div style="font-size:11px;color:var(--mut)">${b.date}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key==='Enter') {
+    const focus = document.activeElement;
+    if (focus.id==='todoIn'||focus.id==='qTask') addTodo();
+    if (focus.id==='topicIn') addTopic();
+    if (focus.id==='resIn') addResource();
+    if (focus.id==='bookDoneIn') logBookDone();
+    if (focus.id==='hoursIn') logHours();
+  }
+});
+</script>
+</body>
+</html>
